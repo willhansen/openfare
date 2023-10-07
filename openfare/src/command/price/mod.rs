@@ -33,11 +33,24 @@ pub struct Arguments {
 pub fn run_command(args: &Arguments, extension_args: &Vec<String>) -> Result<()> {
     let mut config = crate::config::Config::load()?;
     extensions::manage::update_config(&mut config)?;
-    let config = config;
     let extensions = extensions::manage::from_names_arg(&args.extension_names, &config)?;
 
     match &args.package_name {
         Some(package_name) => {
+            let extensions_results = package::query_extensions(
+                &package_name,
+                &args.package_version.as_deref(),
+                &extensions,
+                &extension_args,
+            )?;
+            for (_extension, result) in extensions_results {
+                if !openfare_lib::lock::plan::conditions::parameters::check_set(
+                    &result.package_locks.conditions_metadata(),
+                    &mut config.profile.parameters,
+                )? {
+                    config.dump()?;
+                }
+            }
             package::price(
                 &package_name,
                 &args.package_version.as_deref(),
@@ -47,6 +60,15 @@ pub fn run_command(args: &Arguments, extension_args: &Vec<String>) -> Result<()>
             )?;
         }
         None => {
+            let extensions_results = project::query_extensions(&extensions, &extension_args)?;
+            for (_extension, result) in extensions_results {
+                if !openfare_lib::lock::plan::conditions::parameters::check_set(
+                    &result.package_locks.conditions_metadata(),
+                    &mut config.profile.parameters,
+                )? {
+                    config.dump()?;
+                }
+            }
             project::price(&extensions, &extension_args, &config)?;
         }
     }

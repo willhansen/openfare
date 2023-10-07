@@ -4,7 +4,7 @@ mod common;
 mod employees_count;
 mod expiration;
 mod for_profit;
-mod parameters;
+pub mod parameters;
 
 pub use common::{Condition, ConditionMetadata};
 pub use employees_count::EmployeesCount;
@@ -14,13 +14,13 @@ pub use parameters::Parameters;
 
 #[derive(Debug, Default, Clone, serde::Serialize, serde::Deserialize)]
 pub struct Conditions {
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(flatten, skip_serializing_if = "Option::is_none")]
     pub for_profit: Option<ForProfit>,
 
     #[serde(skip_serializing_if = "Option::is_none")]
     pub expiration: Option<Expiration>,
 
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(skip_serializing_if = "Option::is_none", rename = "employees-count")]
     pub employees_count: Option<EmployeesCount>,
 }
 

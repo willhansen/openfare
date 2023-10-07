@@ -1,12 +1,12 @@
-use crate::common::json::Get;
+use crate::common::json::{Get, Set};
 use anyhow::Result;
 use structopt::{self, StructOpt};
 
 mod common;
 mod condition;
-mod payment;
 mod plan;
 mod profile;
+mod validate;
 
 #[derive(Debug, Clone, StructOpt)]
 pub struct Arguments {
@@ -21,12 +21,16 @@ enum Subcommands {
     New(NewArguments),
     /// Add plan, profile, etc.
     Add(AddArguments),
-    /// Remove plan, profile, payment, condition, etc.
+    /// Set lock field.
+    Set(SetArguments),
+    /// Remove plan, profile, condition, etc.
     Remove(RemoveSubcommands),
     /// Update payee profiles.
     Update(UpdateArguments),
     /// Show lock fields.
     Show(ShowArguments),
+    /// Check if a lock file contains errors
+    Validate(validate::Arguments),
 }
 
 pub fn run_command(args: &Arguments) -> Result<()> {
@@ -37,6 +41,9 @@ pub fn run_command(args: &Arguments) -> Result<()> {
         Subcommands::Add(args) => {
             add(&args)?;
         }
+        Subcommands::Set(args) => {
+            set(&args)?;
+        }
         Subcommands::Remove(args) => {
             remove(&args)?;
         }
@@ -45,6 +52,9 @@ pub fn run_command(args: &Arguments) -> Result<()> {
         }
         Subcommands::Show(args) => {
             show(&args)?;
+        }
+        Subcommands::Validate(args) => {
+            validate::run_command(&args)?;
         }
     }
     Ok(())
@@ -79,9 +89,6 @@ pub enum AddArguments {
     /// Add payee profile to payment plan(s).
     Profile(profile::AddArguments),
 
-    /// Add payment parameters.
-    Payment(payment::AddArguments),
-
     /// Add condition(s) to plan(s).
     Condition(condition::AddArguments),
 }
@@ -93,9 +100,6 @@ fn add(args: &AddArguments) -> Result<()> {
         }
         AddArguments::Profile(args) => {
             profile::add(&args)?;
-        }
-        AddArguments::Payment(args) => {
-            payment::add(&args)?;
         }
         AddArguments::Condition(args) => {
             condition::add(&args)?;
@@ -113,9 +117,6 @@ pub enum RemoveSubcommands {
     /// Remove payee profile from payment plan(s).
     Profile(profile::RemoveArguments),
 
-    /// Remove payment parameters from payment plan(s).
-    Payment(payment::RemoveArguments),
-
     /// Remove condition(s) from payment plan(s).
     Condition(condition::RemoveArguments),
 }
@@ -127,9 +128,6 @@ fn remove(subcommand: &RemoveSubcommands) -> Result<()> {
         }
         RemoveSubcommands::Profile(args) => {
             profile::remove(&args)?;
-        }
-        RemoveSubcommands::Payment(args) => {
-            payment::remove(&args)?;
         }
         RemoveSubcommands::Condition(args) => {
             condition::remove(&args)?;
@@ -146,6 +144,22 @@ pub struct UpdateArguments {
 
 fn update(args: &UpdateArguments) -> Result<()> {
     profile::update(&args.profile)?;
+    Ok(())
+}
+
+#[derive(Debug, StructOpt, Clone)]
+pub struct SetArguments {
+    /// Field path.
+    #[structopt(name = "field-path")]
+    pub path: String,
+
+    /// Field value.
+    pub value: String,
+}
+
+fn set(args: &SetArguments) -> Result<()> {
+    let mut lock_handle = crate::handles::LockHandle::load(&None)?;
+    lock_handle.set(&args.path, &args.value)?;
     Ok(())
 }
 

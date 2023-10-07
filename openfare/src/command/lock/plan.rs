@@ -31,9 +31,9 @@ pub fn add(subcommand: &AddArguments) -> Result<()> {
     global_settings = &[structopt::clap::AppSettings::DisableVersion]
 )]
 pub struct AddCompulsoryArguments {
-    /// Payment plan total fee. Example: "50.2USD"
+    /// Payment plan price. Example: "50.2USD"
     #[structopt(long, short)]
-    pub fee: String,
+    pub price: String,
 
     #[structopt(flatten)]
     pub conditions: super::condition::ConditionArguments,
@@ -51,12 +51,7 @@ pub fn add_compulsory(args: &AddCompulsoryArguments) -> Result<()> {
     let plan = openfare_lib::lock::plan::Plan {
         r#type: openfare_lib::lock::plan::PlanType::Compulsory,
         conditions,
-        payments: openfare_lib::lock::plan::Payments {
-            total: Some(
-                openfare_lib::price::Price::try_from(args.fee.as_str()).expect("parse fee price"),
-            ),
-            shares: None,
-        },
+        price: Some(args.price.parse().expect("parse price")),
     };
     lock_handle.lock.plans.insert(id.clone(), plan.clone());
 
@@ -84,10 +79,7 @@ pub fn add_voluntary(args: &AddVoluntaryArguments) -> Result<()> {
     let plan = openfare_lib::lock::plan::Plan {
         r#type: openfare_lib::lock::plan::PlanType::Voluntary,
         conditions: openfare_lib::lock::plan::conditions::Conditions::default(),
-        payments: openfare_lib::lock::plan::Payments {
-            total: None,
-            shares: None,
-        },
+        price: None,
     };
     lock_handle.lock.plans.insert(id.clone(), plan.clone());
 
@@ -108,10 +100,6 @@ pub struct RemoveArguments {
     /// Payment plan ID(s). All plans included if unset.
     #[structopt(long, short)]
     pub id: Vec<u64>,
-
-    /// Cleanup payees which do not have shares in any plans.
-    #[structopt(long = "cleanup-payees", short)]
-    pub cleanup_payees: bool,
 }
 
 pub fn remove(args: &RemoveArguments) -> Result<()> {
@@ -139,33 +127,6 @@ pub fn remove(args: &RemoveArguments) -> Result<()> {
 
     if !ids.is_empty() {
         println!("Plans removed (ID): {}", ids.join(", "));
-    }
-
-    if args.cleanup_payees {
-        // Remove payees which are not present in plans.
-        let plan_payees_names: std::collections::BTreeSet<openfare_lib::lock::payee::Label> =
-            lock_handle
-                .lock
-                .plans
-                .iter()
-                .filter_map(|(_, plan)| {
-                    if let Some(shares) = &plan.payments.shares {
-                        Some(shares.iter()
-                    .map(|(name, _share)| name.clone())
-                    .collect::<std::collections::BTreeSet<openfare_lib::lock::payee::Label>>())
-                    } else {
-                        None
-                    }
-                })
-                .flatten()
-                .collect();
-        lock_handle.lock.payees = lock_handle
-            .lock
-            .payees
-            .iter()
-            .filter(|(payee_label, _)| plan_payees_names.contains(payee_label.as_str()))
-            .map(|(label, payee)| (label.clone(), payee.clone()))
-            .collect();
     }
     Ok(())
 }
